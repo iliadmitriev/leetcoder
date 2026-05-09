@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 import requests
 from dotenv import load_dotenv
+from tqdm import tqdm
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s"
@@ -82,24 +83,46 @@ def map_language(lang_slug: str) -> dict:
     return mapping.get(lang_slug, {"folder": lang_slug, "ext": "txt"})
 
 
-def fetch_accepted_problem_slugs(session_cookie, csrf_token):
+def fetch_solved_problems(session_cookie, csrf_token):
     headers = get_headers(session_cookie, csrf_token)
-    slugs = []
+    problems = []
     limit, skip = 100, 0
 
-    logger.info("Fetching list of accepted problems...")
-    while True:
-        payload = {
+    resp = requests.post(
+        LEETCODE_GRAPHQL_URL,
+        headers=headers,
+        json={
             "query": SOLVED_PROBLEMS_QUERY,
             "variables": {
-                "filters": {
-                    "skip": skip,
-                    "limit": limit,
-                    "questionStatus": "SOLVED",
-                }
+                "filters": {"skip": 0, "limit": 1, "questionStatus": "SOLVED"}
             },
-        }
-        resp = requests.post(LEETCODE_GRAPHQL_URL, headers=headers, json=payload)
+        },
+    )
+    resp.raise_for_status()
+    total = (
+        resp.json()
+        .get("data", {})
+        .get("userProgressQuestionList", {})
+        .get("totalNum", 0)
+    )
+
+    pbar = tqdm(total=total, desc="Fetching solved problems", unit=" problems")
+
+    while True:
+        resp = requests.post(
+            LEETCODE_GRAPHQL_URL,
+            headers=headers,
+            json={
+                "query": SOLVED_PROBLEMS_QUERY,
+                "variables": {
+                    "filters": {
+                        "skip": skip,
+                        "limit": limit,
+                        "questionStatus": "SOLVED",
+                    }
+                },
+            },
+        )
         resp.raise_for_status()
         data = resp.json()
 
@@ -107,12 +130,11 @@ def fetch_accepted_problem_slugs(session_cookie, csrf_token):
             logger.error(f"GraphQL error: {data['errors']}")
             break
 
-        result = data.get("data", {}).get("userProgressQuestionList", {})
-        questions = result.get("questions", [])
-        total = result.get("totalNum", 0)
+        page = data.get("data", {}).get("userProgressQuestionList", {})
+        questions = page.get("questions", [])
 
         for q in questions:
-            slugs.append(
+            problems.append(
                 {
                     "titleSlug": q["titleSlug"],
                     "frontendId": q.get("frontendId", ""),
@@ -120,99 +142,55 @@ def fetch_accepted_problem_slugs(session_cookie, csrf_token):
                 }
             )
 
+        pbar.update(len(questions))
         skip += limit
         if skip >= total:
             break
         time.sleep(0.5)
 
-    logger.info(f"Found {len(slugs)} accepted problems.")
-    return slugs
-
-
-def fetch_accepted_submissions(
-    username, session_cookie, csrf_token, start_dt, end_dt, daily_slugs=None
-):
-    headers = get_headers(session_cookie, csrf_token)
-    results = []
-
-    problems = fetch_accepted_problem_slugs(session_cookie, csrf_token)
-
-    if daily_slugs is not None:
-        problems = [p for p in problems if p["titleSlug"] in daily_slugs]
-
-    logger.info(f"Fetching submissions for {len(problems)} problems...")
-
-    for problem in problems:
-        slug = problem["titleSlug"]
-        question_id = problem["frontendId"]
-        title = problem["title"]
-
-        offset = 0
-        limit = 20
-
-        while True:
-            payload = {
-                "query": SUBMISSIONS_QUERY,
-                "variables": {
-                    "offset": offset,
-                    "limit": limit,
-                    "slug": slug,
-                },
-            }
-            resp = requests.post(LEETCODE_GRAPHQL_URL, headers=headers, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-
-            if "errors" in data:
-                logger.error(f"GraphQL error for {slug}: {data['errors']}")
-                break
-
-            sub_data = data.get("data", {}).get("submissionList", {})
-            submissions = sub_data.get("submissions", [])
-            has_next = sub_data.get("hasNext", False)
-
-            for sub in submissions:
-                ts = int(sub["timestamp"])
-                sub_time = datetime.fromtimestamp(ts, tz=timezone.utc)
-                if sub_time < start_dt:
-                    break
-
-                if start_dt <= sub_time <= end_dt and sub.get("statusDisplay", "").lower() == "accepted":
-                    results.append(
-                        {
-                            "id": sub["id"],
-                            "title": title,
-                            "lang": sub.get("lang", "unknown"),
-                            "submitTime": ts,
-                            "question": {
-                                "questionId": question_id,
-                                "titleSlug": slug,
-                            },
-                        }
-                    )
-
-            if not has_next:
-                break
-            offset += limit
-            time.sleep(0.5)
-
-        time.sleep(0.8)
-
-    return results
+    pbar.close()
+    return problems
 
 
 def download_code(submission_id, session_cookie, csrf_token):
     headers = get_headers(session_cookie, csrf_token)
-    payload = {
-        "query": SUBMISSION_DETAILS_QUERY,
-        "variables": {"id": int(submission_id)},
-    }
-    resp = requests.post(LEETCODE_GRAPHQL_URL, headers=headers, json=payload)
+    resp = requests.post(
+        LEETCODE_GRAPHQL_URL,
+        headers=headers,
+        json={
+            "query": SUBMISSION_DETAILS_QUERY,
+            "variables": {"id": int(submission_id)},
+        },
+    )
     resp.raise_for_status()
     data = resp.json()
     if "errors" in data:
         return None
     return data["data"]["submissionDetails"].get("code")
+
+
+def save_file(sub, session_cookie, csrf_token):
+    lang_info = map_language(sub.get("lang", "unknown"))
+    folder = lang_info["folder"]
+    ext = lang_info["ext"]
+    os.makedirs(folder, exist_ok=True)
+
+    q_id = sub.get("question", {}).get("questionId", "unknown")
+    title = sub.get("title", "untitled")
+    kebab_title = to_kebab_case(title)
+    filename = f"{q_id}.{kebab_title}.{ext}"
+    filepath = os.path.join(folder, filename)
+
+    if os.path.exists(filepath):
+        return "skipped", filename
+
+    code = download_code(sub["id"], session_cookie, csrf_token)
+    if code:
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(code)
+        return "saved", filename
+    else:
+        return "failed", filename
 
 
 def main():
@@ -228,59 +206,92 @@ def main():
     )
     assert CSRF_TOKEN, "Please set the LEETCODE_CSRF_TOKEN environment variable."
 
-    # Date range (UTC)
-    START_DATE = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    END_DATE = datetime(2024, 1, 31, tzinfo=timezone.utc)
-
-    # Optional: Filter only specific daily challenge slugs
-    # If None, downloads ALL accepted submissions in the period
-    DAILY_CHALLENGE_SLUGS = None  # e.g., ["two-sum", "valid-palindrome"]
+    START_DATE = datetime(2021, 1, 1, tzinfo=timezone.utc)
+    END_DATE = datetime(2026, 6, 1, tzinfo=timezone.utc)
     # =================================================
 
-    submissions = fetch_accepted_submissions(
-        USERNAME,
-        SESSION_COOKIE,
-        CSRF_TOKEN,
-        START_DATE,
-        END_DATE,
-        DAILY_CHALLENGE_SLUGS,
-    )
-    logger.info(
-        f"Found {len(submissions)} accepted submissions in the specified period."
-    )
+    problems = fetch_solved_problems(SESSION_COOKIE, CSRF_TOKEN)
+    logger.info(f"Processing submissions for {len(problems)} solved problems...")
 
-    # Group by language
-    lang_groups = {}
-    for sub in submissions:
-        lang = sub.get("lang", "unknown")
-        lang_groups.setdefault(lang, []).append(sub)
+    headers = get_headers(SESSION_COOKIE, CSRF_TOKEN)
+    saved = 0
+    skipped = 0
+    failed = 0
 
-    for lang_slug, subs in lang_groups.items():
-        lang_info = map_language(lang_slug)
-        folder = lang_info["folder"]
-        ext = lang_info["ext"]
-        os.makedirs(folder, exist_ok=True)
+    for problem in tqdm(problems, desc="Downloading submissions", unit=" problems"):
+        slug = problem["titleSlug"]
+        question_id = problem["frontendId"]
+        title = problem["title"]
 
-        logger.info(f"Processing {len(subs)} submissions for {lang_slug}...")
-        for sub in subs:
-            q_id = sub.get("question", {}).get("questionId", "unknown")
-            title = sub.get("title", "untitled")
-            kebab_title = to_kebab_case(title)
-            filename = f"{q_id}.{kebab_title}.{ext}"
-            filepath = os.path.join(folder, filename)
+        offset = 0
+        limit = 20
+        past_range = False
 
-            if os.path.exists(filepath):
-                logger.info(f"  ⏭️ Skipping {filename} (already exists)")
-                continue
+        while True:
+            resp = requests.post(
+                LEETCODE_GRAPHQL_URL,
+                headers=headers,
+                json={
+                    "query": SUBMISSIONS_QUERY,
+                    "variables": {"offset": offset, "limit": limit, "slug": slug},
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
 
-            time.sleep(0.8)  # Prevent rate limiting on code fetches
-            code = download_code(sub["id"], SESSION_COOKIE, CSRF_TOKEN)
-            if code:
-                with open(filepath, "w", encoding="utf-8") as f:
-                    f.write(code)
-                logger.info(f"  ✅ Saved {filename}")
-            else:
-                logger.warning(f"  ❌ Failed to fetch code for {filename}")
+            if "errors" in data:
+                tqdm.write(f"  ❌ GraphQL error for {slug}")
+                break
+
+            sub_data = data.get("data", {}).get("submissionList", {})
+            submissions = sub_data.get("submissions", [])
+            has_next = sub_data.get("hasNext", False)
+
+            for sub in submissions:
+                ts = int(sub["timestamp"])
+                sub_time = datetime.fromtimestamp(ts, tz=timezone.utc)
+
+                if sub_time < START_DATE:
+                    past_range = True
+                    break
+
+                if not (
+                    START_DATE <= sub_time <= END_DATE
+                    and sub.get("statusDisplay", "").lower() == "accepted"
+                ):
+                    continue
+
+                status, filename = save_file(
+                    {
+                        "id": sub["id"],
+                        "title": title,
+                        "lang": sub.get("lang", "unknown"),
+                        "question": {
+                            "questionId": question_id,
+                            "titleSlug": slug,
+                        },
+                    },
+                    SESSION_COOKIE,
+                    CSRF_TOKEN,
+                )
+
+                if status == "saved":
+                    saved += 1
+                    tqdm.write(f"  ✅ Saved {filename}")
+                elif status == "skipped":
+                    skipped += 1
+                else:
+                    failed += 1
+                    tqdm.write(f"  ❌ Failed {filename}")
+
+                time.sleep(0.3)
+
+            if past_range or not has_next:
+                break
+            offset += limit
+            time.sleep(0.3)
+
+    logger.info(f"Done: {saved} saved, {skipped} skipped, {failed} failed.")
 
 
 if __name__ == "__main__":
