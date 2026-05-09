@@ -1,0 +1,27 @@
+class ParkingSystem {
+private:
+    unordered_map<int, int> free;
+
+public:
+    ParkingSystem(int big, int medium, int small) {
+        free = {
+            {1, big},
+            {2, medium},
+            {3, small}
+        };
+    }
+    
+    bool addCar(int carType) {
+        if (free[carType] > 0) {
+            free[carType]--;
+            return true;
+        }
+        return false;
+    }
+};
+
+/**
+ * Your ParkingSystem object will be instantiated and called as such:
+ * ParkingSystem* obj = new ParkingSystem(big, medium, small);
+ * bool param_1 = obj->addCar(carType);
+ */
