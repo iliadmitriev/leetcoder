@@ -63,6 +63,20 @@ def get_headers(session_cookie: str, csrf_token: str) -> dict:
     }
 
 
+def graphql_post(headers, payload, retries=5, backoff=2):
+    for attempt in range(1, retries + 1):
+        try:
+            resp = requests.post(LEETCODE_GRAPHQL_URL, headers=headers, json=payload)
+            resp.raise_for_status()
+            return resp
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            if attempt == retries:
+                raise
+            wait = backoff * attempt
+            tqdm.write(f"  ⚠️ Retry {attempt}/{retries} after {e.__class__.__name__} ({wait}s)")
+            time.sleep(wait)
+
+
 def to_kebab_case(title: str) -> str:
     kebab = re.sub(r"[\s_\-]+", "-", title.lower())
     kebab = re.sub(r"[^a-z0-9-]", "", kebab)
@@ -83,15 +97,13 @@ def map_language(lang_slug: str) -> dict:
     return mapping.get(lang_slug, {"folder": lang_slug, "ext": "txt"})
 
 
-def fetch_solved_problems(session_cookie, csrf_token):
-    headers = get_headers(session_cookie, csrf_token)
+def fetch_solved_problems(headers):
     problems = []
     limit, skip = 100, 0
 
-    resp = requests.post(
-        LEETCODE_GRAPHQL_URL,
-        headers=headers,
-        json={
+    resp = graphql_post(
+        headers,
+        {
             "query": SOLVED_PROBLEMS_QUERY,
             "variables": {
                 "filters": {"skip": 0, "limit": 1, "questionStatus": "SOLVED"}
@@ -109,10 +121,9 @@ def fetch_solved_problems(session_cookie, csrf_token):
     pbar = tqdm(total=total, desc="Fetching solved problems", unit=" problems")
 
     while True:
-        resp = requests.post(
-            LEETCODE_GRAPHQL_URL,
-            headers=headers,
-            json={
+        resp = graphql_post(
+            headers,
+            {
                 "query": SOLVED_PROBLEMS_QUERY,
                 "variables": {
                     "filters": {
@@ -152,12 +163,10 @@ def fetch_solved_problems(session_cookie, csrf_token):
     return problems
 
 
-def download_code(submission_id, session_cookie, csrf_token):
-    headers = get_headers(session_cookie, csrf_token)
-    resp = requests.post(
-        LEETCODE_GRAPHQL_URL,
-        headers=headers,
-        json={
+def download_code(headers, submission_id):
+    resp = graphql_post(
+        headers,
+        {
             "query": SUBMISSION_DETAILS_QUERY,
             "variables": {"id": int(submission_id)},
         },
@@ -176,7 +185,7 @@ def fmt_ts(ts):
     return datetime.fromtimestamp(int(ts), tz=timezone.utc).strftime("%Y-%m-%d")
 
 
-def save_file(sub, session_cookie, csrf_token):
+def save_file(headers, sub):
     lang_info = map_language(sub.get("lang", "unknown"))
     folder = lang_info["folder"]
     ext = lang_info["ext"]
@@ -192,7 +201,7 @@ def save_file(sub, session_cookie, csrf_token):
     if os.path.exists(filepath):
         return "skipped", filename, date_str
 
-    code = download_code(sub["id"], session_cookie, csrf_token)
+    code = download_code(headers, sub["id"])
     if code:
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(code)
@@ -218,10 +227,11 @@ def main():
     END_DATE = datetime(2026, 12, 2, tzinfo=timezone.utc)
     # =================================================
 
-    problems = fetch_solved_problems(SESSION_COOKIE, CSRF_TOKEN)
+    headers = get_headers(SESSION_COOKIE, CSRF_TOKEN)
+
+    problems = fetch_solved_problems(headers)
     logger.info(f"Processing submissions for {len(problems)} solved problems...")
 
-    headers = get_headers(SESSION_COOKIE, CSRF_TOKEN)
     saved = 0
     skipped = 0
     failed = 0
@@ -236,10 +246,9 @@ def main():
         past_range = False
 
         while True:
-            resp = requests.post(
-                LEETCODE_GRAPHQL_URL,
-                headers=headers,
-                json={
+            resp = graphql_post(
+                headers,
+                {
                     "query": SUBMISSIONS_QUERY,
                     "variables": {"offset": offset, "limit": limit, "slug": slug},
                 },
@@ -270,6 +279,7 @@ def main():
                     continue
 
                 status, filename, date_str = save_file(
+                    headers,
                     {
                         "id": sub["id"],
                         "title": title,
@@ -280,8 +290,6 @@ def main():
                             "titleSlug": slug,
                         },
                     },
-                    SESSION_COOKIE,
-                    CSRF_TOKEN,
                 )
 
                 if status == "saved":
