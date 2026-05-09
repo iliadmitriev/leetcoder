@@ -146,7 +146,7 @@ def fetch_solved_problems(session_cookie, csrf_token):
         skip += limit
         if skip >= total:
             break
-        time.sleep(0.5)
+        time.sleep(0.1)
 
     pbar.close()
     return problems
@@ -166,7 +166,14 @@ def download_code(submission_id, session_cookie, csrf_token):
     data = resp.json()
     if "errors" in data:
         return None
-    return data["data"]["submissionDetails"].get("code")
+    detail = data["data"].get("submissionDetails")
+    if detail is None:
+        return None
+    return detail.get("code")
+
+
+def fmt_ts(ts):
+    return datetime.fromtimestamp(int(ts), tz=timezone.utc).strftime("%Y-%m-%d")
 
 
 def save_file(sub, session_cookie, csrf_token):
@@ -180,17 +187,18 @@ def save_file(sub, session_cookie, csrf_token):
     kebab_title = to_kebab_case(title)
     filename = f"{q_id}.{kebab_title}.{ext}"
     filepath = os.path.join(folder, filename)
+    date_str = fmt_ts(sub.get("submitTime", 0))
 
     if os.path.exists(filepath):
-        return "skipped", filename
+        return "skipped", filename, date_str
 
     code = download_code(sub["id"], session_cookie, csrf_token)
     if code:
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(code)
-        return "saved", filename
+        return "saved", filename, date_str
     else:
-        return "failed", filename
+        return "failed", filename, date_str
 
 
 def main():
@@ -207,7 +215,7 @@ def main():
     assert CSRF_TOKEN, "Please set the LEETCODE_CSRF_TOKEN environment variable."
 
     START_DATE = datetime(2021, 1, 1, tzinfo=timezone.utc)
-    END_DATE = datetime(2026, 6, 1, tzinfo=timezone.utc)
+    END_DATE = datetime(2026, 12, 2, tzinfo=timezone.utc)
     # =================================================
 
     problems = fetch_solved_problems(SESSION_COOKIE, CSRF_TOKEN)
@@ -261,11 +269,12 @@ def main():
                 ):
                     continue
 
-                status, filename = save_file(
+                status, filename, date_str = save_file(
                     {
                         "id": sub["id"],
                         "title": title,
                         "lang": sub.get("lang", "unknown"),
+                        "submitTime": ts,
                         "question": {
                             "questionId": question_id,
                             "titleSlug": slug,
@@ -277,19 +286,19 @@ def main():
 
                 if status == "saved":
                     saved += 1
-                    tqdm.write(f"  ✅ Saved {filename}")
+                    tqdm.write(f"  ✅ [{date_str}] Saved {filename}")
                 elif status == "skipped":
                     skipped += 1
                 else:
                     failed += 1
-                    tqdm.write(f"  ❌ Failed {filename}")
+                    tqdm.write(f"  ❌ [{date_str}] Failed {filename}")
 
-                time.sleep(0.3)
+                time.sleep(0.1)
 
             if past_range or not has_next:
                 break
             offset += limit
-            time.sleep(0.3)
+            time.sleep(0.1)
 
     logger.info(f"Done: {saved} saved, {skipped} skipped, {failed} failed.")
 
