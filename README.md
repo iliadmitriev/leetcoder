@@ -4,7 +4,7 @@ Download your accepted LeetCode submissions as local files, organized by program
 
 ## What it does
 
-Connects to LeetCode via its GraphQL API and downloads the source code of your accepted submissions within a configurable date range. Files are saved into per-language folders with names like `1.two-sum.py`.
+By default, downloads your accepted solution for **today's daily challenge**. With `--all`, downloads all your accepted submissions within a configurable date range. Files are saved into per-language folders with names like `1.two-sum.py`.
 
 Example output structure:
 
@@ -53,28 +53,28 @@ LEETCODE_CSRF_TOKEN=your_csrf_token
 2. Open DevTools (F12) -> Application -> Cookies -> `https://leetcode.com`
 3. Copy the values of `LEETCODE_SESSION` and `csrftoken`
 
-### Date range
-
-Edit `START_DATE` and `END_DATE` in the `main()` function of `leetcoder.py`:
-
-```python
-START_DATE = datetime(2021, 1, 1, tzinfo=timezone.utc)
-END_DATE = datetime(2026, 12, 2, tzinfo=timezone.utc)
-```
-
 ## Usage
+
+### Daily challenge (default)
 
 ```bash
 uv run leetcoder.py
 ```
 
-The script will:
+Fetches today's daily challenge and downloads your accepted submission for it.
 
-1. Fetch your list of solved problems (with progress bar)
-2. For each problem, scan its submissions and immediately download+save any accepted submission within the date range (with progress bar)
-3. Print each saved file with its date: `✅ [2025-04-12] Saved 1.two-sum.py`
-4. Skip files that already exist on disk
-5. Print a summary at the end
+### Download all submissions
+
+```bash
+uv run leetcoder.py --all
+```
+
+Downloads all your accepted submissions within the configured date range. To change the range, edit `START_DATE` and `END_DATE` in the `main()` function:
+
+```python
+START_DATE = datetime(2021, 1, 1, tzinfo=timezone.utc)
+END_DATE = datetime(2026, 12, 2, tzinfo=timezone.utc)
+```
 
 ## Resuming
 
