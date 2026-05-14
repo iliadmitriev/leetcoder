@@ -88,7 +88,9 @@ def graphql_post(headers, payload, retries=5, backoff=2):
             if attempt == retries:
                 raise
             wait = backoff * attempt
-            tqdm.write(f"  ⚠️ Retry {attempt}/{retries} after {e.__class__.__name__} ({wait}s)")
+            tqdm.write(
+                f"  ⚠️ Retry {attempt}/{retries} after {e.__class__.__name__} ({wait}s)"
+            )
             time.sleep(wait)
 
 
@@ -320,9 +322,7 @@ def scan_problem(headers, problem, start_dt=None, end_dt=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Download your LeetCode submissions"
-    )
+    parser = argparse.ArgumentParser(description="Download your LeetCode submissions")
     parser.add_argument(
         "--all",
         action="store_true",
@@ -333,7 +333,9 @@ def main():
     SESSION_COOKIE = os.getenv("LEETCODE_SESSION_COOKIE")
     CSRF_TOKEN = os.getenv("LEETCODE_CSRF_TOKEN")
 
-    assert SESSION_COOKIE, "Please set the LEETCODE_SESSION_COOKIE environment variable."
+    assert SESSION_COOKIE, (
+        "Please set the LEETCODE_SESSION_COOKIE environment variable."
+    )
     assert CSRF_TOKEN, "Please set the LEETCODE_CSRF_TOKEN environment variable."
 
     headers = get_headers(SESSION_COOKIE, CSRF_TOKEN)
@@ -346,8 +348,18 @@ def main():
         USERNAME = os.getenv("LEETCODE_USERNAME")
         assert USERNAME, "Please set the LEETCODE_USERNAME environment variable."
 
-        START_DATE = datetime(2021, 1, 1, tzinfo=timezone.utc)
-        END_DATE = datetime(2026, 12, 2, tzinfo=timezone.utc)
+        START_DATE = os.getenv("LEETCODE_START_DATE")
+        END_DATE = os.getenv("LEETCODE_END_DATE")
+
+        if not START_DATE:
+            START_DATE = datetime(2021, 1, 1, tzinfo=timezone.utc)
+        else:
+            START_DATE = datetime.fromisoformat(START_DATE)
+
+        if not END_DATE:
+            END_DATE = datetime.now(tz=timezone.utc)
+        else:
+            END_DATE = datetime.fromisoformat(END_DATE)
 
         problems = fetch_solved_problems(headers)
         logger.info(f"Processing submissions for {len(problems)} solved problems...")
@@ -366,7 +378,9 @@ def main():
         total_skipped += k
         total_failed += f
 
-    logger.info(f"Done: {total_saved} saved, {total_skipped} skipped, {total_failed} failed.")
+    logger.info(
+        f"Done: {total_saved} saved, {total_skipped} skipped, {total_failed} failed."
+    )
 
 
 if __name__ == "__main__":
