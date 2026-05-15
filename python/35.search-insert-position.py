@@ -1,15 +1,14 @@
 class Solution:
     def searchInsert(self, nums: List[int], target: int) -> int:
-        left, right = 0, len(nums)
+        def bs(lo, hi):
+            if lo == hi:
+                return lo
 
-        while left < right:
-            mid =  (right + left) // 2
-            
-            if target == nums[mid]:
-                right = left = mid
-            elif target < nums[mid]:
-                right = mid
+            mid = (lo + hi) // 2
+
+            if nums[mid] < target:
+                return bs(mid + 1, hi)
             else:
-                left = mid + 1
+                return bs(lo, mid)
         
-        return left
+        return bs(0, len(nums))
