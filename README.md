@@ -4,7 +4,7 @@ Download your accepted LeetCode submissions as local files, organized by program
 
 ## What it does
 
-By default, downloads your accepted solution for **today's daily challenge**. With `--all`, downloads all your accepted submissions within a configurable date range. Files are saved into per-language folders with names like `1.two-sum.py`.
+Downloads your latest accepted LeetCode submission as a local file, organized by programming language. Multiple source modes are available — by default, it fetches today's daily challenge. Files are saved into per-language folders with names like `1.two-sum.py`.
 
 Example output structure:
 
@@ -19,15 +19,15 @@ golang/
 
 ## Supported languages
 
-| Language    | Folder   | Extension |
-|-------------|----------|-----------|
-| Python/Python3 | `python` | `.py` |
-| C++        | `cpp`    | `.cpp` |
-| Go         | `golang` | `.go` |
-| Java       | `java`   | `.java` |
-| JavaScript | `js`     | `.js` |
-| TypeScript | `ts`     | `.ts` |
-| Rust       | `rust`   | `.rs` |
+| Language       | Folder   | Extension |
+| -------------- | -------- | --------- |
+| Python/Python3 | `python` | `.py`     |
+| C++            | `cpp`    | `.cpp`    |
+| Go             | `golang` | `.go`     |
+| Java           | `java`   | `.java`   |
+| JavaScript     | `js`     | `.js`     |
+| TypeScript     | `ts`     | `.ts`     |
+| Rust           | `rust`   | `.rs`     |
 
 ## Setup
 
@@ -42,7 +42,6 @@ uv sync
 Create a `.env` file in the project root:
 
 ```env
-LEETCODE_USERNAME=your_username
 LEETCODE_SESSION_COOKIE=your_session_cookie
 LEETCODE_CSRF_TOKEN=your_csrf_token
 ```
@@ -61,7 +60,36 @@ LEETCODE_CSRF_TOKEN=your_csrf_token
 uv run leetcoder.py
 ```
 
-Fetches today's daily challenge and downloads your accepted submission for it.
+Downloads your latest accepted submission for today's daily challenge.
+
+### Download by problem ID range
+
+```bash
+uv run leetcoder.py --range 1-50
+```
+
+Downloads your latest accepted submission for solved problems #1 through #50.
+
+### Download specific problems
+
+```bash
+uv run leetcoder.py --problems 1 42 100
+```
+
+Downloads your latest accepted submission for the specified problem IDs.
+
+### Download by date
+
+```bash
+uv run leetcoder.py --from-date 2024-01-01 --to-date 2024-06-30
+```
+
+Downloads accepted submissions made between the given dates (implies all solved problems). You can omit either end:
+
+```bash
+uv run leetcoder.py --from-date 2024-01-01
+uv run leetcoder.py --to-date 2024-06-30
+```
 
 ### Download all submissions
 
@@ -69,16 +97,20 @@ Fetches today's daily challenge and downloads your accepted submission for it.
 uv run leetcoder.py --all
 ```
 
-Downloads all your accepted submissions within the configured date range. To change the range, edit `START_DATE` and `END_DATE` in the `main()` function:
+Downloads your latest accepted submission for every solved problem.
 
-```python
-START_DATE = datetime(2021, 1, 1, tzinfo=timezone.utc)
-END_DATE = datetime(2026, 12, 2, tzinfo=timezone.utc)
+### Force overwrite
+
+Add `--force` to any mode to overwrite existing files:
+
+```bash
+uv run leetcoder.py --all --force
+uv run leetcoder.py --range 1-50 --force
 ```
 
 ## Resuming
 
-Safe to re-run. Already-existing files are skipped, so interrupted runs pick up where they left off.
+Safe to re-run. Already-existing files are skipped, so interrupted runs pick up where they left off. Use `--force` to overwrite with the latest submission.
 
 ## Rate limiting
 
