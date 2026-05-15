@@ -217,7 +217,7 @@ def fmt_ts(ts):
     return datetime.fromtimestamp(int(ts), tz=timezone.utc).strftime("%Y-%m-%d")
 
 
-def save_file(headers, sub):
+def save_file(headers, sub, force=False):
     lang_info = map_language(sub.get("lang", "unknown"))
     folder = lang_info["folder"]
     ext = lang_info["ext"]
@@ -230,21 +230,25 @@ def save_file(headers, sub):
     filepath = os.path.join(folder, filename)
     date_str = fmt_ts(sub.get("submitTime", 0))
 
-    if os.path.exists(filepath):
+    already_exists = os.path.exists(filepath)
+    if already_exists and not force:
         return "skipped", filename, date_str
 
     code = download_code(headers, sub["id"])
     if code:
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(code)
+        if force and already_exists:
+            return "overwritten", filename, date_str
         return "saved", filename, date_str
     else:
         return "failed", filename, date_str
 
 
-def scan_problem(headers, problem, start_dt=None, end_dt=None):
+def scan_problem(headers, problem, start_dt=None, end_dt=None, force=False):
     saved = 0
     skipped = 0
+    overwritten = 0
     failed = 0
 
     slug = problem["titleSlug"]
@@ -300,25 +304,34 @@ def scan_problem(headers, problem, start_dt=None, end_dt=None):
                         "titleSlug": slug,
                     },
                 },
+                force=force,
             )
 
             if status == "saved":
                 saved += 1
                 tqdm.write(f"  ✅ [{date_str}] Saved {filename}")
+            elif status == "overwritten":
+                overwritten += 1
+                tqdm.write(f"  🔄 [{date_str}] Overwritten {filename}")
             elif status == "skipped":
                 skipped += 1
             else:
                 failed += 1
                 tqdm.write(f"  ❌ [{date_str}] Failed {filename}")
 
+            if force:
+                break
+
             time.sleep(0.1)
 
         if past_range or not has_next:
             break
+        if force:
+            break
         offset += limit
         time.sleep(0.1)
 
-    return saved, skipped, failed
+    return saved, skipped, overwritten, failed
 
 
 def main():
@@ -327,6 +340,11 @@ def main():
         "--all",
         action="store_true",
         help="download all accepted submissions in the date range (default: today's daily challenge only)",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="force overwrite existing files with the latest accepted submission",
     )
     args = parser.parse_args()
 
@@ -342,6 +360,7 @@ def main():
 
     total_saved = 0
     total_skipped = 0
+    total_overwritten = 0
     total_failed = 0
 
     if args.all:
@@ -365,22 +384,31 @@ def main():
         logger.info(f"Processing submissions for {len(problems)} solved problems...")
 
         for problem in tqdm(problems, desc="Downloading submissions", unit=" problems"):
-            s, k, f = scan_problem(headers, problem, START_DATE, END_DATE)
+            s, k, o, f = scan_problem(headers, problem, START_DATE, END_DATE, force=args.force)
             total_saved += s
             total_skipped += k
+            total_overwritten += o
             total_failed += f
     else:
         daily = fetch_daily_challenge()
         logger.info(f"Today's daily challenge: {daily['title']} ({daily['titleSlug']})")
 
-        s, k, f = scan_problem(headers, daily)
+        s, k, o, f = scan_problem(headers, daily, force=args.force)
         total_saved += s
         total_skipped += k
+        total_overwritten += o
         total_failed += f
 
-    logger.info(
-        f"Done: {total_saved} saved, {total_skipped} skipped, {total_failed} failed."
-    )
+    parts = []
+    if total_saved:
+        parts.append(f"{total_saved} saved")
+    if total_overwritten:
+        parts.append(f"{total_overwritten} overwritten")
+    if total_skipped:
+        parts.append(f"{total_skipped} skipped")
+    if total_failed:
+        parts.append(f"{total_failed} failed")
+    logger.info(f"Done: {', '.join(parts)}.")
 
 
 if __name__ == "__main__":
