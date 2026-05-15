@@ -78,20 +78,26 @@ def get_headers(session_cookie: str, csrf_token: str) -> dict:
     }
 
 
-def graphql_post(headers, payload, retries=5, backoff=2):
+def graphql_post(headers, payload, retries=5, backoff=1):
     for attempt in range(1, retries + 1):
         try:
             resp = requests.post(LEETCODE_GRAPHQL_URL, headers=headers, json=payload)
             resp.raise_for_status()
             return resp
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+        except (
+            requests.exceptions.Timeout,
+            requests.exceptions.ConnectionError,
+            requests.exceptions.HTTPError,
+        ) as e:
             if attempt == retries:
-                raise
+                break
             wait = backoff * attempt
             tqdm.write(
                 f"  ⚠️ Retry {attempt}/{retries} after {e.__class__.__name__} ({wait}s)"
             )
             time.sleep(wait)
+
+    raise RuntimeError("all attempts have failed")
 
 
 def to_kebab_case(title: str) -> str:
@@ -170,7 +176,7 @@ def fetch_solved_problems(headers):
         data = resp.json()
 
         if "errors" in data:
-            logger.error(f"GraphQL error: {data['errors']}")
+            logger.error("GraphQL error: %s", data["errors"])
             break
 
         page = data.get("data", {}).get("userProgressQuestionList", {})
@@ -351,7 +357,7 @@ def resolve_problems(headers, args):
 
     if args.all:
         problems = fetch_solved_problems(headers)
-        logger.info(f"Processing {len(problems)} solved problems...")
+        logger.info("Processing %d solved problems...", len(problems))
         return problems, start_dt, end_dt
 
     if args.range:
@@ -364,28 +370,40 @@ def resolve_problems(headers, args):
             and range_start <= int(p["frontendId"]) <= range_end
         ]
         logger.info(
-            f"Found {len(problems)} solved problems in range {range_start}-{range_end}"
+            "Found %d solved problems in range %d-%d",
+            len(problems),
+            range_start,
+            range_end,
         )
         return problems, start_dt, end_dt
 
     if args.problems:
         target_ids = {str(pid) for pid in args.problems}
         all_solved = fetch_solved_problems(headers)
-        problems = [
-            p for p in all_solved if p["frontendId"] in target_ids
-        ]
+        problems = [p for p in all_solved if p["frontendId"] in target_ids]
         missing = target_ids - {p["frontendId"] for p in problems}
         if missing:
-            logger.warning(f"No solved problems found for IDs: {', '.join(sorted(missing))}")
-        logger.info(f"Found {len(problems)} matching solved problems")
+            logger.warning(
+                "No solved problems found for IDs: %s", ", ".join(sorted(missing))
+            )
+        logger.info("Found %d matching solved problems", len(problems))
         return problems, start_dt, end_dt
 
     if args.from_date or args.to_date:
-        start_dt = parse_date(args.from_date) if args.from_date else datetime(2021, 1, 1, tzinfo=timezone.utc)
-        end_dt = parse_date(args.to_date) if args.to_date else datetime.now(tz=timezone.utc)
+        start_dt = (
+            parse_date(args.from_date)
+            if args.from_date
+            else datetime(2021, 1, 1, tzinfo=timezone.utc)
+        )
+        end_dt = (
+            parse_date(args.to_date) if args.to_date else datetime.now(tz=timezone.utc)
+        )
         problems = fetch_solved_problems(headers)
         logger.info(
-            f"Processing {len(problems)} solved problems ({start_dt:%Y-%m-%d} to {end_dt:%Y-%m-%d})..."
+            "Processing %d solved problems (%s to %s)...",
+            len(problems),
+            start_dt.strftime("%Y-%m-%d"),
+            end_dt.strftime("%Y-%m-%d"),
         )
         return problems, start_dt, end_dt
 
@@ -452,7 +470,7 @@ def main():
 
     if problems is None:
         daily = fetch_daily_challenge()
-        logger.info(f"Today's daily challenge: {daily['title']} ({daily['titleSlug']})")
+        logger.info("Today's daily challenge: %s (%s)", daily["title"], daily["titleSlug"])
         problems = [daily]
 
     for problem in tqdm(problems, desc="Downloading", unit=" problem"):
@@ -482,7 +500,7 @@ def main():
         parts.append(f"{total_not_found} not found")
     if total_failed:
         parts.append(f"{total_failed} failed")
-    logger.info(f"Done: {', '.join(parts) or 'nothing to do'}.")
+    logger.info("Done: %s.", ", ".join(parts) or "nothing to do")
 
 
 if __name__ == "__main__":
