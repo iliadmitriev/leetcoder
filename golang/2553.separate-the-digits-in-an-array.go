@@ -1,15 +1,19 @@
 func separateDigits(nums []int) []int {
-	res := make([]int, 0)
+	n := len(nums)
+	res := make([]int, 0, n)
+	digits := make([]int, 0, 6)
 
-	for i := len(nums) - 1; i >= 0; i-- {
-		num := nums[i]
-
+	for _, num := range nums {
 		for num > 0 {
-			res = append(res, num%10)
+			digits = append(digits, num%10)
 			num /= 10
+		}
+
+		for len(digits) > 0 {
+			res = append(res, digits[len(digits) - 1])
+			digits = digits[:len(digits)-1]
 		}
 	}
 
-	slices.Reverse(res)
 	return res
 }
