@@ -246,18 +246,12 @@ def save_file(headers, sub, force=False):
 
 
 def scan_problem(headers, problem, start_dt=None, end_dt=None, force=False):
-    saved = 0
-    skipped = 0
-    overwritten = 0
-    failed = 0
-
     slug = problem["titleSlug"]
     question_id = problem["frontendId"]
     title = problem["title"]
 
     offset = 0
     limit = 20
-    past_range = False
 
     while True:
         resp = graphql_post(
@@ -272,7 +266,7 @@ def scan_problem(headers, problem, start_dt=None, end_dt=None, force=False):
 
         if "errors" in data:
             tqdm.write(f"  ❌ GraphQL error for {slug}")
-            break
+            return "failed", slug
 
         sub_data = data.get("data", {}).get("submissionList", {})
         submissions = sub_data.get("submissions", [])
@@ -283,8 +277,7 @@ def scan_problem(headers, problem, start_dt=None, end_dt=None, force=False):
             sub_time = datetime.fromtimestamp(ts, tz=timezone.utc)
 
             if start_dt and sub_time < start_dt:
-                past_range = True
-                break
+                return "not_found", slug
 
             if sub.get("statusDisplay", "").lower() != "accepted":
                 continue
@@ -308,43 +301,134 @@ def scan_problem(headers, problem, start_dt=None, end_dt=None, force=False):
             )
 
             if status == "saved":
-                saved += 1
                 tqdm.write(f"  ✅ [{date_str}] Saved {filename}")
+                return "saved", filename
             elif status == "overwritten":
-                overwritten += 1
                 tqdm.write(f"  🔄 [{date_str}] Overwritten {filename}")
+                return "overwritten", filename
             elif status == "skipped":
-                skipped += 1
+                return "skipped", filename
             else:
-                failed += 1
                 tqdm.write(f"  ❌ [{date_str}] Failed {filename}")
+                return "failed", filename
 
-            if force:
-                break
+        if not has_next:
+            return "not_found", slug
 
-            time.sleep(0.1)
-
-        if past_range or not has_next:
-            break
-        if force:
-            break
         offset += limit
         time.sleep(0.1)
 
-    return saved, skipped, overwritten, failed
+
+def parse_range(range_str):
+    parts = range_str.split("-")
+    if len(parts) != 2:
+        raise argparse.ArgumentTypeError(
+            f"Invalid range '{range_str}', expected format: START-END (e.g. 1-50)"
+        )
+    try:
+        start, end = int(parts[0]), int(parts[1])
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"Invalid range '{range_str}', expected integers (e.g. 1-50)"
+        )
+    if start > end:
+        start, end = end, start
+    return start, end
+
+
+def parse_date(date_str):
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"Invalid date '{date_str}', expected format: YYYY-MM-DD"
+        )
+
+
+def resolve_problems(headers, args):
+    start_dt = None
+    end_dt = None
+
+    if args.all:
+        problems = fetch_solved_problems(headers)
+        logger.info(f"Processing {len(problems)} solved problems...")
+        return problems, start_dt, end_dt
+
+    if args.range:
+        range_start, range_end = parse_range(args.range)
+        all_solved = fetch_solved_problems(headers)
+        problems = [
+            p
+            for p in all_solved
+            if p["frontendId"].isdigit()
+            and range_start <= int(p["frontendId"]) <= range_end
+        ]
+        logger.info(
+            f"Found {len(problems)} solved problems in range {range_start}-{range_end}"
+        )
+        return problems, start_dt, end_dt
+
+    if args.problems:
+        target_ids = {str(pid) for pid in args.problems}
+        all_solved = fetch_solved_problems(headers)
+        problems = [
+            p for p in all_solved if p["frontendId"] in target_ids
+        ]
+        missing = target_ids - {p["frontendId"] for p in problems}
+        if missing:
+            logger.warning(f"No solved problems found for IDs: {', '.join(sorted(missing))}")
+        logger.info(f"Found {len(problems)} matching solved problems")
+        return problems, start_dt, end_dt
+
+    if args.from_date or args.to_date:
+        start_dt = parse_date(args.from_date) if args.from_date else datetime(2021, 1, 1, tzinfo=timezone.utc)
+        end_dt = parse_date(args.to_date) if args.to_date else datetime.now(tz=timezone.utc)
+        problems = fetch_solved_problems(headers)
+        logger.info(
+            f"Processing {len(problems)} solved problems ({start_dt:%Y-%m-%d} to {end_dt:%Y-%m-%d})..."
+        )
+        return problems, start_dt, end_dt
+
+    return None, start_dt, end_dt
 
 
 def main():
     parser = argparse.ArgumentParser(description="Download your LeetCode submissions")
-    parser.add_argument(
+    source_group = parser.add_mutually_exclusive_group()
+    source_group.add_argument(
         "--all",
         action="store_true",
-        help="download all accepted submissions in the date range (default: today's daily challenge only)",
+        help="download all solved problems",
+    )
+    source_group.add_argument(
+        "--range",
+        metavar="START-END",
+        type=str,
+        help="download solved problems by ID range (e.g. 1-50)",
+    )
+    source_group.add_argument(
+        "--problems",
+        nargs="+",
+        type=int,
+        metavar="ID",
+        help="download specific solved problems by ID (e.g. 1 42 100)",
+    )
+    parser.add_argument(
+        "--from-date",
+        metavar="YYYY-MM-DD",
+        type=str,
+        help="download submissions from this date (implies all solved problems)",
+    )
+    parser.add_argument(
+        "--to-date",
+        metavar="YYYY-MM-DD",
+        type=str,
+        help="download submissions up to this date (implies all solved problems)",
     )
     parser.add_argument(
         "--force",
         action="store_true",
-        help="force overwrite existing files with the latest accepted submission",
+        help="overwrite existing files",
     )
     args = parser.parse_args()
 
@@ -362,42 +446,30 @@ def main():
     total_skipped = 0
     total_overwritten = 0
     total_failed = 0
+    total_not_found = 0
 
-    if args.all:
-        USERNAME = os.getenv("LEETCODE_USERNAME")
-        assert USERNAME, "Please set the LEETCODE_USERNAME environment variable."
+    problems, start_dt, end_dt = resolve_problems(headers, args)
 
-        START_DATE = os.getenv("LEETCODE_START_DATE")
-        END_DATE = os.getenv("LEETCODE_END_DATE")
-
-        if not START_DATE:
-            START_DATE = datetime(2021, 1, 1, tzinfo=timezone.utc)
-        else:
-            START_DATE = datetime.fromisoformat(START_DATE)
-
-        if not END_DATE:
-            END_DATE = datetime.now(tz=timezone.utc)
-        else:
-            END_DATE = datetime.fromisoformat(END_DATE)
-
-        problems = fetch_solved_problems(headers)
-        logger.info(f"Processing submissions for {len(problems)} solved problems...")
-
-        for problem in tqdm(problems, desc="Downloading submissions", unit=" problems"):
-            s, k, o, f = scan_problem(headers, problem, START_DATE, END_DATE, force=args.force)
-            total_saved += s
-            total_skipped += k
-            total_overwritten += o
-            total_failed += f
-    else:
+    if problems is None:
         daily = fetch_daily_challenge()
         logger.info(f"Today's daily challenge: {daily['title']} ({daily['titleSlug']})")
+        problems = [daily]
 
-        s, k, o, f = scan_problem(headers, daily, force=args.force)
-        total_saved += s
-        total_skipped += k
-        total_overwritten += o
-        total_failed += f
+    for problem in tqdm(problems, desc="Downloading", unit=" problem"):
+        status, detail = scan_problem(
+            headers, problem, start_dt, end_dt, force=args.force
+        )
+        if status == "saved":
+            total_saved += 1
+        elif status == "overwritten":
+            total_overwritten += 1
+        elif status == "skipped":
+            total_skipped += 1
+        elif status == "not_found":
+            total_not_found += 1
+        else:
+            total_failed += 1
+        time.sleep(0.1)
 
     parts = []
     if total_saved:
@@ -406,9 +478,11 @@ def main():
         parts.append(f"{total_overwritten} overwritten")
     if total_skipped:
         parts.append(f"{total_skipped} skipped")
+    if total_not_found:
+        parts.append(f"{total_not_found} not found")
     if total_failed:
         parts.append(f"{total_failed} failed")
-    logger.info(f"Done: {', '.join(parts)}.")
+    logger.info(f"Done: {', '.join(parts) or 'nothing to do'}.")
 
 
 if __name__ == "__main__":
