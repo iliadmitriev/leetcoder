@@ -258,6 +258,8 @@ def scan_problem(headers, problem, start_dt=None, end_dt=None, force=False):
 
     offset = 0
     limit = 20
+    seen_langs = set()
+    results = []
 
     while True:
         resp = graphql_post(
@@ -272,31 +274,41 @@ def scan_problem(headers, problem, start_dt=None, end_dt=None, force=False):
 
         if "errors" in data:
             tqdm.write(f"  ❌ GraphQL error for {slug}")
-            return "failed", slug
+            return [("failed", slug)]
 
         sub_data = data.get("data", {}).get("submissionList", {})
         submissions = sub_data.get("submissions", [])
         has_next = sub_data.get("hasNext", False)
+
+        found_accepted_on_page = False
 
         for sub in submissions:
             ts = int(sub["timestamp"])
             sub_time = datetime.fromtimestamp(ts, tz=timezone.utc)
 
             if start_dt and sub_time < start_dt:
-                return "not_found", slug
+                return results if results else [("not_found", slug)]
 
             if sub.get("statusDisplay", "").lower() != "accepted":
                 continue
 
+            found_accepted_on_page = True
+
             if start_dt and end_dt and not (start_dt <= sub_time <= end_dt):
                 continue
+
+            lang = sub.get("lang", "unknown")
+            if lang in seen_langs:
+                continue
+
+            seen_langs.add(lang)
 
             status, filename, date_str = save_file(
                 headers,
                 {
                     "id": sub["id"],
                     "title": title,
-                    "lang": sub.get("lang", "unknown"),
+                    "lang": lang,
                     "submitTime": ts,
                     "question": {
                         "questionId": question_id,
@@ -308,18 +320,21 @@ def scan_problem(headers, problem, start_dt=None, end_dt=None, force=False):
 
             if status == "saved":
                 tqdm.write(f"  ✅ [{date_str}] Saved {filename}")
-                return "saved", filename
+                results.append(("saved", filename))
             elif status == "overwritten":
                 tqdm.write(f"  🔄 [{date_str}] Overwritten {filename}")
-                return "overwritten", filename
+                results.append(("overwritten", filename))
             elif status == "skipped":
-                return "skipped", filename
+                results.append(("skipped", filename))
             else:
                 tqdm.write(f"  ❌ [{date_str}] Failed {filename}")
-                return "failed", filename
+                results.append(("failed", filename))
 
         if not has_next:
-            return "not_found", slug
+            return results if results else [("not_found", slug)]
+
+        if found_accepted_on_page and not start_dt and not end_dt:
+            return results if results else [("not_found", slug)]
 
         offset += limit
         time.sleep(0.1)
@@ -474,19 +489,20 @@ def main():
         problems = [daily]
 
     for problem in tqdm(problems, desc="Downloading", unit=" problem"):
-        status, detail = scan_problem(
+        results = scan_problem(
             headers, problem, start_dt, end_dt, force=args.force
         )
-        if status == "saved":
-            total_saved += 1
-        elif status == "overwritten":
-            total_overwritten += 1
-        elif status == "skipped":
-            total_skipped += 1
-        elif status == "not_found":
-            total_not_found += 1
-        else:
-            total_failed += 1
+        for status, detail in results:
+            if status == "saved":
+                total_saved += 1
+            elif status == "overwritten":
+                total_overwritten += 1
+            elif status == "skipped":
+                total_skipped += 1
+            elif status == "not_found":
+                total_not_found += 1
+            else:
+                total_failed += 1
         time.sleep(0.1)
 
     parts = []
