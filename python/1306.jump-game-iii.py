@@ -1,20 +1,20 @@
 class Solution:
-    def canReach(self, arr: List[int], start: int) -> bool:
-        visited = dict()
-        
-        def helper(i: int) -> bool:
-            if i < 0 or i >= len(arr):
-                return False
-            
-            if i in visited:
-                return visited[i]
-            
-            visited[i] = arr[i] == 0
-            
+    def canReach(self, arr: list[int], start: int) -> bool:
+        n = len(arr)
+        vis = [False] * n
+
+        def dfs(i: int) -> bool:
             if arr[i] == 0:
                 return True
-            
-            return helper(i - arr[i]) or helper(i + arr[i])
-        
-        
-        return helper(start)
+
+            if vis[i]:
+                return False
+
+            vis[i] = True
+
+            if i - arr[i] >= 0 and dfs(i - arr[i]):
+                return True
+
+            return i + arr[i] < n and dfs(i + arr[i])
+
+        return dfs(start)
