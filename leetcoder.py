@@ -485,13 +485,16 @@ def main():
 
     if problems is None:
         daily = fetch_daily_challenge()
-        logger.info("Today's daily challenge: %s (%s)", daily["title"], daily["titleSlug"])
+        logger.info(
+            "Today's daily challenge: %s. %s (%s)",
+            daily["frontendId"],
+            daily["title"],
+            daily["titleSlug"],
+        )
         problems = [daily]
 
     for problem in tqdm(problems, desc="Downloading", unit=" problem"):
-        results = scan_problem(
-            headers, problem, start_dt, end_dt, force=args.force
-        )
+        results = scan_problem(headers, problem, start_dt, end_dt, force=args.force)
         for status, detail in results:
             if status == "saved":
                 total_saved += 1
