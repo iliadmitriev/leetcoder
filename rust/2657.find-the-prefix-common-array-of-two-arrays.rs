@@ -6,10 +6,12 @@ impl Solution {
         let mut res = vec![0; N];
         let mut cur = 0; // current count
 
-        for (i, (&va, &vb)) in a.iter().zip(b.iter()).enumerate() {
-            let i1 = va as usize;
-            let i2 = vb as usize;
-
+        for (i, i1, i2) in a
+            .iter()
+            .zip(b.iter())
+            .enumerate()
+            .map(|(z, (&x, &y))| (z, x as usize, y as usize))
+        {
             cache[i1] += 1;
             if (cache[i1] == 2) {
                 cur += 1;
