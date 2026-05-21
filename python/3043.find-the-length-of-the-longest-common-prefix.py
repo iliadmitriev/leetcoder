@@ -1,25 +1,22 @@
-from collections.abc import Iterator
+import math
 
 
 class Solution:
     def longestCommonPrefix(self, arr1: list[int], arr2: list[int]) -> int:
-        def prefix(num: int) -> Iterator[tuple[int, int]]:
-            res = str(num)
-            for i in range(1, len(str(num)) + 1):
-                yield i, int(res[:i])
 
-        cache = set()
-        for num1 in arr1:
-            for _, pref in prefix(num1):
-                cache.add(pref)
+        cache: set[int] = set()
+        for num in arr1:
+            while num > 0:
+                cache.add(num)
+                num //= 10
 
         maxPrefixLen = 0
         for num in arr2:
-
-            for ll, pref in prefix(num):
-                if pref in cache:
-                    maxPrefixLen = max(maxPrefixLen, ll)
+            while num > 0:
+                if num in cache:
+                    maxPrefixLen = max(maxPrefixLen, int(math.log10(num)) + 1)
+                    break
+                num //= 10
 
         return maxPrefixLen
-
 

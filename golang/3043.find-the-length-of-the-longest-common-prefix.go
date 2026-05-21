@@ -1,47 +1,28 @@
 import (
-	"sort"
-	"strconv"
+	"math"
 )
 
 func longestCommonPrefix(arr1 []int, arr2 []int) int {
-	l1, l2 := len(arr1), len(arr2)
-	str1, str2 := make([]string, l1), make([]string, l2)
-
-	for i := 0; i < l1; i++ {
-		str1[i] = strconv.Itoa(arr1[i])
-	}
-
-	for i := 0; i < l2; i++ {
-		str2[i] = strconv.Itoa(arr2[i])
-	}
-
-	sort.Strings(str1)
-	sort.Strings(str2)
-
-	maxPrefixLen := 0
-
-	for i, j := 0, 0; i < l1 && j < l2; {
-		maxPrefixLen = max(maxPrefixLen, commonPrefixLen(str1[i], str2[j]))
-
-		if str1[i] > str2[j] {
-			j++
-		} else if str1[i] < str2[j] {
-			i++
-		} else {
-			i, j = i+1, j+1
+	cache := make(map[int]bool, len(arr1))
+	for _, num := range arr1 {
+		for num > 0 {
+			cache[num] = true
+			num /= 10
 		}
 	}
 
-	return maxPrefixLen
-}
+	maxPrefixLen := 0
 
-func commonPrefixLen(a, b string) int {
-	n := min(len(a), len(b))
-	i := 0
+	for _, num := range arr2 {
+		for num > 0 {
+			if _, ok := cache[num]; ok {
+				maxPrefixLen = max(maxPrefixLen, int(math.Log10(float64(num)))+1)
+				break
+			}
+			num /= 10
+		}
 
-	for i < n && a[i] == b[i] {
-		i++
 	}
 
-	return i
+	return maxPrefixLen
 }
