@@ -78,6 +78,22 @@ def get_headers(session_cookie: str, csrf_token: str) -> dict:
     }
 
 
+def validate_auth(headers):
+    resp = graphql_post(
+        headers,
+        {
+            "query": SOLVED_PROBLEMS_QUERY,
+            "variables": {
+                "filters": {"skip": 0, "limit": 1, "questionStatus": "SOLVED"}
+            },
+        },
+    )
+    data = resp.json()
+    if "errors" in data:
+        return False
+    return data.get("data", {}).get("userProgressQuestionList") is not None
+
+
 def graphql_post(headers, payload, retries=5, backoff=1):
     for attempt in range(1, retries + 1):
         try:
@@ -180,7 +196,7 @@ def fetch_solved_problems(headers):
             break
 
         page = data.get("data", {}).get("userProgressQuestionList", {})
-        questions = page.get("questions", [])
+        questions = page.get("questions") or []
 
         for q in questions:
             problems.append(
@@ -277,7 +293,7 @@ def scan_problem(headers, problem, start_dt=None, end_dt=None, force=False):
             return [("failed", slug)]
 
         sub_data = data.get("data", {}).get("submissionList", {})
-        submissions = sub_data.get("submissions", [])
+        submissions = sub_data.get("submissions") or []
         has_next = sub_data.get("hasNext", False)
 
         found_accepted_on_page = False
@@ -474,6 +490,13 @@ def main():
     assert CSRF_TOKEN, "Please set the LEETCODE_CSRF_TOKEN environment variable."
 
     headers = get_headers(SESSION_COOKIE, CSRF_TOKEN)
+
+    if not validate_auth(headers):
+        logger.error(
+            "Authentication failed — LEETCODE_SESSION_COOKIE may be expired. "
+            "Update it in your .env file."
+        )
+        return
 
     total_saved = 0
     total_skipped = 0
