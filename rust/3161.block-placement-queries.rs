@@ -1,4 +1,5 @@
 use std::cmp;
+use std::collections::BTreeSet;
 
 struct SegmentTree {
     tree: Vec<i32>,
@@ -68,55 +69,94 @@ impl SegmentTree {
     }
 }
 
+struct FenwickTree {
+  tree: Vec<i32>,
+  n: usize,
+}
+
+impl FenwickTree {
+  fn with_capacity(n: usize) -> Self {
+    Self{
+      tree: vec![0; n],
+      n: n,
+    }
+  }
+
+  fn update(&mut self, x: i32, v: i32) {
+    let mut x = x as usize;
+    while x < self.n {
+      self.tree[x] = self.tree[x].max(v);
+      x += x & (!x + 1); // down
+    }
+  }
+
+  fn query(&self, x: i32) -> i32 {
+    let mut x = x as usize;
+    let mut res = 0;
+
+    while x > 0 {
+      res = res.max(self.tree[x]);
+      x -= x & (!x + 1);
+    }
+
+    res
+  }
+}
+
 impl Solution {
     pub fn get_results(queries: Vec<Vec<i32>>) -> Vec<bool> {
-      let max_x = queries.iter().map(|q| q[1] as usize).max().unwrap_or(0);
-      let mut seg = SegmentTree::new(max_x + 2);
+      let mx = queries.iter().map(|q| q[1]).max().unwrap_or(0);
+      let mut st = BTreeSet::new();
 
-      // init tree: [0, max_x + 1]
-      let right_boundary = max_x + 1;
-      let mut obs = vec![0, right_boundary as i32];
-      seg.update(right_boundary, right_boundary as i32);
+
+      // init B-tree: [0, mx + 1] with obstacles
+      let right_boundary = mx + 1;
+      st.insert(0);
+      st.insert(right_boundary);
+      for q in &queries {
+        if q[0] == 1 {
+          st.insert(q[1]); // insert all obstacles
+        }
+      }
 
       let mut results = Vec::with_capacity(queries.len());
 
-      for q in &queries {
+      // init fenwick tree with segments beetween obstacles
+      let mut bt = FenwickTree::with_capacity((mx + 1) as usize);
+      
+      let mut pre = 0;
+      for &x in st.iter() {
+        if x == 0 {
+          continue;
+        }
+
+        bt.update(x, x - pre);
+        pre = x;
+      }
+
+
+      for q in queries.iter().rev() {
         match &q[..] {
           // type 1: add obstacle x
           [1, x] => {
-            // idx - insertion point
-            let idx = match obs.binary_search(x) {
-              Err(i) => i,
-              Ok(_) => unreachable!("duplicate item"),
-            };
+            let pre_val = st.range(..x).next_back().copied().unwrap_or(0);
+            let next = st.range((x + 1)..).next().copied().unwrap_or(mx);
 
-            let prev = obs[idx - 1];
-            let next = obs[idx];
-
-            seg.update(*x as usize, *x - prev);
-            seg.update(next as usize, next - *x);
-
-            obs.insert(idx, *x); // optimized memmove
+            bt.update(next, next - pre_val);
+            st.remove(&x);
           },
           // type 2: check if block of size sz fits to [0, x]
           [2, x, sz] => {
-            let x_val = *x as usize;
+            let pre_val = st.range(..x).next_back().copied().unwrap_or(0);
+            let max_space = bt.query(pre_val).max(x - pre_val);
 
-            let idx = match obs.binary_search(x) {
-              Ok(i) => i,
-              Err(i) => i - 1,
-            };
-
-            let last_obs = obs[idx];
-
-            let max_gap = seg.query(0, x_val).max(x_val as i32 - last_obs);
-
-            results.push(max_gap >= *sz);
+            results.push(max_space >= *sz);
           },
           _ => unreachable!(),
         }
       }
 
+      results.reverse();
       results
     }
 }
