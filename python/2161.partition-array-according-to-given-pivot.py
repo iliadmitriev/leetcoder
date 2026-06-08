@@ -1,15 +1,27 @@
-
-
 class Solution:
     def pivotArray(self, nums: list[int], pivot: int) -> list[int]:
-        p, q = [], []
+        n = len(nums)
+        res = [0] * n 
 
-        for i in range(len(nums)):
+        # write pointers
+        l, r = 0, n - 1
+
+        # read pointers:
+        # i - forward pointer
+        # j - reverse pointer
+        for i in range(n):
+            j = n - i - 1 
+
             if nums[i] < pivot:
-                p.append(nums[i])
+                res[l] = nums[i]
+                l += 1
 
-            elif nums[i] > pivot:
-                q.append(nums[i])
+            if nums[j] > pivot:
+                res[r] = nums[j]
+                r -= 1
 
-        return p + [pivot] * (len(nums) - len(p) - len(q)) + q
-
+        # fill the gap with pivot value
+        for i in range(l, r + 1):
+            res[i] = pivot
+          
+        return res

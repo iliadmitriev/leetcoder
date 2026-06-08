@@ -1,24 +1,28 @@
 func pivotArray(nums []int, pivot int) []int {
 	n := len(nums)
-	less := make([]int, 0, n)
-	greater := make([]int, 0)
-	piv := 0
 
-	for i := 0; i < n; i++ {
-		switch {
-		case nums[i] < pivot:
-			less = append(less, nums[i])
-		case nums[i] > pivot:
-			greater = append(greater, nums[i])
-		default:
-			piv++
+	res := make([]int, n)
+
+	// write pointers
+	l, r := 0, n-1
+
+	// read pointers
+	for i, j := 0, n-1; i < n; i, j = i+1, j-1 {
+		if nums[i] < pivot {
+			res[l] = nums[i]
+			l++
+		}
+
+		if nums[j] > pivot {
+			res[r] = nums[j]
+			r--
 		}
 	}
 
-	for ; piv > 0; piv-- {
-		less = append(less, pivot)
+	// fill the gap
+	for i := l; i <= r; i++ {
+		res[i] = pivot
 	}
 
-	less = append(less, greater...)
-	return less
+	return res
 }

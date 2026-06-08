@@ -3,26 +3,29 @@ using std::vector;
 
 class Solution {
 public:
-  vector<int> pivotArray(vector<int> &nums, int pivot) {
-    const int n = nums.size();
-    vector<int> p, q;
-    p.reserve(n);
+    vector<int> pivotArray(vector<int>& nums, int pivot) {
+        const int n = nums.size();
+        vector<int> res(n);
 
-    for (int i = 0; i < n; i++) {
-      if (nums[i] < pivot) {
-        p.push_back(nums[i]);
-      } else if (nums[i] > pivot) {
-        q.push_back(nums[i]);
-      }
+        // write pointers
+        int l = 0, r = n - 1;
+
+        // read pointers
+        for (int i = 0, j = n - 1; i < n; i++, j--) {
+            if (nums[i] < pivot) {
+                res[l++] = nums[i];
+            }
+
+            if (nums[j] > pivot) {
+                res[r--] = nums[j];
+            }
+        }
+
+        // fill the gap
+        for (int i = l; i <= r; i++) {
+            res[i] = pivot;
+        }
+
+        return res;
     }
-
-    int count = n - p.size() - q.size();
-    for (int i = 0; i < count; i++) {
-      p.push_back(pivot);
-    }
-
-    p.insert(p.end(), q.begin(), q.end());
-
-    return p;
-  }
 };
