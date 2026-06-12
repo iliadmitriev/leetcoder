@@ -3,32 +3,38 @@
 using std::vector, std::unordered_map;
 
 /*
-  Binary uplifting tree DSA
+  Binary lifting
+  (binary uplifting tree)
 */
 class BinaryUpliftingTree {
 private:
     int n;                   // number of nodes;
     int LOG;                 // max number of logarithmic jumps to root;
     vector<int> depth;       // depths on nodes
-    vector<vector<int>> adj; // adjacency list adj[u] -> {v1, v2, v2, ...}
-    vector<vector<int>> up; // upward ancestors of node u (logarighmic) up[u] ->
-                            // [2^0, 2^1, ..., 2^j]
+    vector<vector<int>> adj; // adjacency list adj[u] -> {v1, v2, v3, ...}
+    vector<vector<int>> up;  // upward (2^j)-th ancestors of node
+                            // up[u] = [p1, p2, p4, ...], p1 = (2^0)-th ancestor
+                            // up[u][j] = p, p => {node, -1} // -1 - none
 
-    // DFS algorightm for preprocessing tree
+    // DFS algorithm for preprocessing tree
     // u - current node, p - parent node, d - current depth
     void dfs(int u, int p, int d) {
         depth[u] = d;
-        up[u][0] = p;
+        up[u][0] = p; // first ancestor is parent
 
         for (int j = 1; j < LOG; j++) {
             if (up[u][j - 1] != -1) {
+                // since: 2 ^ j = 2 ^ (j - 1) + 2 ^ (j - 1)
+                // jump up by half (j - 1) to w: w = up[u][j - 1]
+                // jump up by half (j - 1) again: up[u][j] = up[w][j - 1] = p
                 up[u][j] = up[up[u][j - 1]][j - 1];
             } else {
-                up[u][j] = -1;
+                // up[u][j] = -1; // it's already initalized, but who knows
+                break; // optimization
             }
         }
 
-        // go to neighbourg (child nodes, skip parent)
+        // go to neighbour (child nodes, skip parent)
         for (int v : adj[u]) {
             if (v == p) { // skip parent
                 continue;
@@ -47,7 +53,7 @@ public:
     void addEdge(int u, int v) {
         // TODO: without order (to be optimized later)
         if (u > v) {
-          std::swap(u, v); // u < v
+            std::swap(u, v); // u < v
         }
 
         adj[u].push_back(v);
@@ -72,7 +78,7 @@ public:
         return u;
     };
 
-    // lowest commont ancestor of arbitrary nodes u and v
+    // lowest common ancestor of arbitrary nodes u and v
     int lca(int u, int v) {
         if (depth[u] < depth[v]) {
             std::swap(u, v);
