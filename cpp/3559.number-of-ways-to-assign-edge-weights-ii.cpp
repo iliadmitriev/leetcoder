@@ -46,8 +46,11 @@ public:
     // add edge to graph (before preprocessing)
     void addEdge(int u, int v) {
         // TODO: without order (to be optimized later)
+        if (u > v) {
+          std::swap(u, v); // u < v
+        }
+
         adj[u].push_back(v);
-        adj[v].push_back(u);
     }
 
     // preprocess before use (builds up ancestors list for nodes)
@@ -122,6 +125,8 @@ private:
     }
 
 public:
+    // T: O(N log N + M log N)
+    // S: O(N + N log N)
     vector<int> assignEdgeWeights(vector<vector<int>>& edges,
                                   vector<vector<int>>& queries) {
         // depth[u] = number of edges upward from u to root
@@ -133,17 +138,18 @@ public:
         // in the tree (conneced graph without cycles) there is always
         // number of nodes greater then number of edges by 1
         const int n = edges.size() + 1;
-        BinaryUpliftingTree bt(n);
+        BinaryUpliftingTree bt(n); // S: O(N + N log N)
 
         for (vector<int>& edge : edges) {
             bt.addEdge(edge[0] - 1, edge[1] - 1); // shift 1-based to 0-based
         }
 
-        bt.preprocess(0); // preprocess from root node;
+        bt.preprocess(0); // preprocess from root node; T: O(N log N)
 
         const int m = queries.size();
         vector<int> res(m, 0);
 
+        // O(M log N)
         for (int i = 0; i < m; i++) {
             // shifted from 1-base to 0-based nodes u and v
             int u = queries[i][0] - 1, v = queries[i][1] - 1;
