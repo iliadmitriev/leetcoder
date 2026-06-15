@@ -4,19 +4,19 @@
 #         self.val = val
 #         self.next = next
 class Solution:
-    def deleteMiddle(self, head: Optional[ListNode]) -> Optional[ListNode]:
-        res = ListNode(-1)
-        res.next = head
-        step1x = step2x = res
+    def deleteMiddle(self, head: ListNode | None) -> ListNode | None:
+        prev, mid, end = None, head, head
+
+        while end and end.next:
+            prev = mid
+            mid = mid.next
+            end = end.next.next
+
+        if not prev:
+            return None
+
+        if mid:
+            prev.next = mid.next
+
+        return head
         
-        # step 2x pointer forward to get one node before middle node
-        step2x = step2x.next
-        
-        # find middle
-        while step2x and step2x.next:
-            step1x = step1x.next
-            step2x = step2x.next.next
-        
-        # remove middle by crosslinking
-        step1x.next = step1x.next.next
-        return res.next
