@@ -1,15 +1,14 @@
 import (
-    "sort"
+    "slices"
 )
 
 func maximumElementAfterDecrementingAndRearranging(arr []int) int {
-    sort.Ints(arr)
+    slices.Sort(arr)
     prev := 0
+
     for _, num := range arr {
-        if (num > prev + 1) {
-            num = prev + 1
-        }
-        prev = num
+      prev = min(prev + 1, num)
     }
+    
     return prev
 }
