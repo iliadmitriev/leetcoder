@@ -1,23 +1,24 @@
-#include <array>
-#include <string>
-
-using std::string, std::array;
-
 class Solution {
 public:
-  int numberOfSubstrings(string s) {
-    array<int, 3> win;
-    const int n = s.size();
-    int count = 0, left = 0;
+    int numberOfSubstrings(string s) {
+        const int n = s.size();
 
-    for (int right = 0; right < n; right++) {
-      win[s[right] - 'a']++;
-      while (win[0] && win[1] && win[2]) {
-        count += n - right;
-        win[s[left++] - 'a']--;
-      }
+        int cnt[] = {0, 0, 0};
+        int win = 0, res = 0;
+        int i = 0;
+
+        for (int j = 0; j < n; j++) {
+            cnt[s[j] - 'a']++;
+
+            while (cnt[0] && cnt[1] && cnt[2]) {
+                win++;
+                cnt[s[i] - 'a']--;
+                i += 1;
+            }
+
+            res += win;
+        }
+
+        return res;
     }
-
-    return count;
-  }
 };

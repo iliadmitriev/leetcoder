@@ -6,11 +6,14 @@ func numberOfSubstrings(s string) int {
 
 	for right := 0; right < N; right++ {
 		win[s[right]-'a']++
-		for win[0] > 0 && win[1] > 0 && win[2] > 0 {
-			count += N - right
+		
+    for win[0] > 0 && win[1] > 0 && win[2] > 0 {
 			win[s[left]-'a']--
+      
 			left++
 		}
+
+		count += left // add left part length r times
 	}
 
 	return count
