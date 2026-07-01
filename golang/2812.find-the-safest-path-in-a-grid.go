@@ -62,8 +62,8 @@ func maximumSafenessFactor(grid [][]int) int {
 
 	hq := &ThiefHeap{}
 	heap.Push(hq, ThiefInfo{R: 0, C: 0, Dist: thieves[0][0]})
-	visited := make(map[[2]int]bool)
-	visited[[2]int{0, 0}] = true
+	visited := make([]bool, ROWS * COLS)
+	visited[0] = true
 
 	for hq.Len() > 0 {
 		node := heap.Pop(hq).(ThiefInfo)
@@ -78,13 +78,13 @@ func maximumSafenessFactor(grid [][]int) int {
 				continue
 			}
 
-			if _, ok := visited[[2]int{nr, nc}]; ok {
+			if visited[nr * COLS + nc] {
 				continue
 			}
 
 			nd := min(node.Dist, thieves[nr][nc])
 			heap.Push(hq, ThiefInfo{R: nr, C: nc, Dist: nd})
-			visited[[2]int{nr, nc}] = true
+			visited[nr * COLS + nc] = true
 		}
 	}
 	return -1

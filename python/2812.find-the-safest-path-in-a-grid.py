@@ -1,5 +1,3 @@
-
-
 class Solution:
     def maximumSafenessFactor(self, grid: List[List[int]]) -> int:
         ROWS, COLS = len(grid), len(grid[0])
@@ -27,7 +25,7 @@ class Solution:
                     q.append((nr, nc))
 
         hq = [(-dist[0][0], 0, 0)]  # distance, row, col
-        visited = set([(0, 0)])
+        visited = [[False] * COLS for _ in range(ROWS)]
 
         while hq:
             d, r, c = heappop(hq)
@@ -43,13 +41,12 @@ class Solution:
                 if 0 > nr or nr >= ROWS or 0 > nc or nc >= COLS:
                     continue
 
-                if (nr, nc) in visited:
+                if visited[nr][nc]:
                     continue
 
                 nd = min(d, dist[nr][nc])
 
                 heappush(hq, (-nd, nr, nc))
-                visited.add((nr, nc))
+                visited[nr][nc] = True
 
         return -1
-
