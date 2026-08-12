@@ -1,23 +1,30 @@
+#include <unordered_map>
+#include <vector>
+
+using std::vector, std::unordered_map;
+
 class Solution {
 public:
-  int maxSubarrayLength(vector<int> &nums, int k) {
-    if (k >= nums.size()) {
-      return nums.size();
+    int maxSubarrayLength(vector<int>& nums, int k) {
+        const int n = nums.size();
+
+        if (k >= n) {
+            return n;
+        }
+        
+        int j = 0, largest = 0;
+        unordered_map<int, int> cnt;
+
+        for (int i = 0; i < n; i++) {
+            cnt[nums[i]]++;
+
+            while (j < i && cnt[nums[i]] > k) {
+                cnt[nums[j++]]--;
+            }
+
+            largest = std::max(largest, i - j + 1);
+        }
+
+        return largest;
     }
-
-    unordered_map<int, int> freq;
-    int ans = 0;
-    int i = 0; // left bound
-
-    for (int j = 0; j < nums.size(); ++j) {
-      freq[nums[j]]++;
-
-      while (i <= j && freq[nums[j]] > k)
-        freq[nums[i++]]--;
-
-      ans = max(ans, j - i + 1);
-    }
-
-    return ans;
-  }
 };
