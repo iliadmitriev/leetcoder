@@ -6,6 +6,7 @@ class Solution {
 public:
   vector<int> resultArray(vector<int> &nums) {
     vector<int> arr1 = {nums[0]}, arr2 = {nums[1]};
+    arr2.reserve(nums.size() / 2);
     arr1.reserve(nums.size());
 
     for (int j = 2; j < nums.size(); j++) {
