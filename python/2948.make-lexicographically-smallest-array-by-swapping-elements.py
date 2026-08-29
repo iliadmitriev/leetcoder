@@ -1,26 +1,26 @@
 class Solution:
     def lexicographicallySmallestArray(self, nums: list[int], limit: int) -> list[int]:
         n = len(nums)
-        res = []
-        groupCur = 0
-        posToGroup = [-1] * n
-        groupStart = [0]
+        res = [0] * n
 
-        cache = sorted(enumerate(nums), key=lambda x: x[1])
-        prev = cache[0][1]
+        indexed = sorted((v, i) for i, v in enumerate(nums)) # [(value, position), ...]
+        values = [indexed[0][0]]
+        group = [indexed[0][1]]
 
-        for j, (i, num) in enumerate(cache):
-            if num - prev > limit:
-                groupCur += 1
-                groupStart.append(j)
 
-            posToGroup[i] = groupCur
-            prev = num
+        def drain(res: list[int], group: list[int], values: list[int]) -> None:
+            for k, j in enumerate(sorted(group)):
+                res[j] = values[k]
 
-        for i, num in enumerate(nums):
-            group = posToGroup[i]
-            res.append(cache[groupStart[group]][1])
-            groupStart[group] += 1
+        for i in range(1, n):
+            if indexed[i][0] - indexed[i - 1][0] <= limit:
+                values.append(indexed[i][0]) # value
+                group.append(indexed[i][1]) # position
+            else:
+                drain(res, group, values)
+                values = [indexed[i][0]]
+                group = [indexed[i][1]]
+
+        drain(res, group, values)
 
         return res
-

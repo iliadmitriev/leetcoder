@@ -1,44 +1,48 @@
-#include <numeric>
+#include <algorithm>
+#include <ranges>
+#include <utility>
 #include <vector>
 
-using std::vector;
+using std::vector, std::pair;
 
 class Solution {
 public:
-  vector<int> lexicographicallySmallestArray(vector<int> &nums, int limit) {
-    const int N = nums.size();
-    vector<int> res(N);
-    int groupIdx = 0;
-    vector<int> posToGroup(N, -1);
-    vector<int> groupStart = {0};
+    vector<int> lexicographicallySmallestArray(vector<int>& nums, int limit) {
+        const int n = nums.size();
+        // sorted vector of pairs {(position, value), ...}
+        auto data = nums | std::views::enumerate |
+                    std::ranges::to<vector<pair<int, int>>>();
 
-    vector<int> sortedNums(N);
-    std::iota(sortedNums.begin(), sortedNums.end(), 0);
-    std::sort(sortedNums.begin(), sortedNums.end(),
-              [&nums](int i1, int i2) -> bool { return nums[i1] < nums[i2]; });
+        std::ranges::sort(data, {}, &pair<int, int>::second);
 
-    int prev = nums[sortedNums.front()];
+        vector<int> indices({data[0].first}),
+            values({data[0].second}); // buffers
 
-    for (int j = 0; j < N; ++j) {
-      int i = sortedNums[j];
-      int num = nums[i];
+        vector<int> res(n, -1);
 
-      if (num - prev > limit) {
-        groupIdx++;
-        groupStart.push_back(j);
-      }
+        auto drain = [](vector<int>& res, vector<int>& indices,
+                        vector<int>& values) -> void {
+            std::ranges::sort(indices);
 
-      posToGroup[i] = groupIdx;
-      prev = num;
+            for (auto [k, j] : std::views::enumerate(indices)) {
+                res[j] = values[k];
+            }
+
+            values.clear();
+            indices.clear();
+        };
+
+        for (int i = 1; i < n; i++) {
+            if (data[i].second - data[i - 1].second > limit) {
+                drain(res, indices, values);
+            }
+
+            indices.push_back(data[i].first);
+            values.push_back(data[i].second);
+        }
+
+        drain(res, indices, values);
+
+        return res;
     }
-
-    for (int j = 0; j < N; ++j) {
-      int group = posToGroup[j];
-
-      res[j] = nums[sortedNums[groupStart[group]]];
-      groupStart[group]++;
-    }
-
-    return res;
-  }
 };

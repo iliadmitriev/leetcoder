@@ -1,37 +1,47 @@
-func lexicographicallySmallestArray(nums []int, limit int) []int {
-	N := len(nums)
-	res := make([]int, N)
-	posToGroup := make([]int, N)
-	groupStart := []int{0}
-	groupIdx := 0
+import (
+	"slices"
+	"cmp"
+)
 
-	sorted := make([]int, N)
-	for i := range sorted {
-		sorted[i] = i
+func lexicographicallySmallestArray(nums []int, limit int) []int {
+	n := len(nums)
+	res := make([]int, n)
+
+	// sorted slice of pairs {{value, position}, ...}
+	data := make([][2]int, n)
+	for i, v := range nums {
+		data[i] = [2]int{v, i}
 	}
-	sort.Slice(sorted, func(i, j int) bool {
-		return nums[sorted[i]] < nums[sorted[j]]
+	slices.SortFunc(data, func(a, b [2]int) int {
+		return cmp.Compare(a[0], b[0])
 	})
 
-	prev := nums[sorted[0]]
-	for j := 0; j < N; j++ {
-		i := sorted[j]
-		num := nums[i]
+	values := make([]int, 0, n)
+	values = append(values, data[0][0])
 
-		if num-prev > limit {
-			groupStart = append(groupStart, j)
-			groupIdx++
+	positions := make([]int, 0, n)
+	positions = append(positions, data[0][1])
+
+	drain := func(res, values, positions []int) {
+		slices.Sort(positions) // sort positions (values already sorted)
+
+		for k, j := range positions {
+			res[j] = values[k]
+		}
+	}
+
+	for i := 1; i < n; i++ {
+		if data[i][0]-data[i-1][0] > limit {
+			drain(res, values, positions)
+			values = values[:0]
+			positions = positions[:0]
 		}
 
-		posToGroup[i] = groupIdx
-		prev = num
+		values = append(values, data[i][0])
+		positions = append(positions, data[i][1])
 	}
 
-	for j := 0; j < N; j++ {
-		i := posToGroup[j]
-		res[j] = nums[sorted[groupStart[i]]]
-		groupStart[i]++
-	}
+	drain(res, values, positions)
 
 	return res
 }
