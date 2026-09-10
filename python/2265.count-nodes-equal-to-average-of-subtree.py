@@ -4,51 +4,27 @@
 #         self.val = val
 #         self.left = left
 #         self.right = right
-from typing import Tuple
 
 
 class Solution:
-    def averageOfSubtree(self, root: Optional[TreeNode]) -> int:
-        res = 0
+    def averageOfSubtree(self, root: TreeNode | None) -> int:
+        res = [0]
 
-        stack = [(root, False)]
-        data = []
+        def dfs(node: TreeNode | None) -> tuple[int, int]:  # sum, count
+            if not node:
+                return 0, 0
 
-        while stack:
+            leftSum, leftCount = dfs(node.left)
+            rightSum, rightCount = dfs(node.right)
 
-            node, ret = stack.pop()
-            # value returned
-            if ret:
-                count = 1
-                total = node.val
-                
-                if node.left:
-                    left, count_left = data.pop()
-                    total += left
-                    count += count_left
+            total = leftSum + rightSum + node.val
+            count = leftCount + rightCount + 1
 
-                if node.right:
-                    right, count_right = data.pop()
-                    total += right
-                    count += count_right
+            if (total // count) == node.val:
+                res[0] += 1
 
-                if total // count == node.val:
-                    res += 1
+            return total, count
 
-                # return value
-                data.append((total, count))
-                continue
+        dfs(root)
 
-            # value not returned
-            # postorder traversal (reversed)
-
-            stack.append((node, True))
-
-            if node.right:
-                stack.append((node.right, False))
-
-            if node.left:
-                stack.append((node.left, False))
-
-
-        return res 
+        return res[0]
