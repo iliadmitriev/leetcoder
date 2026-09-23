@@ -27,35 +27,34 @@ class Solution:
                 until it becomes less than target or 0 (when pointers are equal)
             + if current sum is equal to target
         """
-        
-        current_sum = 0
-        # target sum to be left in array
         target = sum(nums) - x
 
+        # optimization #1
         if target < 0:
             return -1
 
-        n = len(nums)
+        # optimization #2
         if target == 0:
-            return n
-        
+            return len(nums)
+
+        count = 0
+        total = 0
         left = 0
-        res = sys.maxsize
-        
-        for right, num in enumerate(nums):
-            # accumutale current sum
-            current_sum += num
+        res = float("inf")
+
+        for right in range(len(nums)):
+            # increase cout and total from right border
+            total += nums[right]
+            count += 1
             
-            # if current sum became greater than target
-            # move leftmost pointer and decrease current sum
-            # until it becomes less than target or 0 (when pointers are equal)
-            while left <= right and current_sum > target:
-                current_sum -= nums[left]
+            # reduce count and total from left border
+            while left <= right and total > target:
+                total -= nums[left]
+                count -= 1
                 left += 1
 
-            # if current sum is equal to target 
-            # calculate result
-            if current_sum == target:
-                res = min(res, n - (right - left + 1))
+            if total == target:
+                length = len(nums) - (right - left + 1)
+                res = min(res, length)
 
-        return -1 if res == sys.maxsize else res
+        return -1 if res == float("inf") else res
