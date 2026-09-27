@@ -13,4 +13,3 @@ class Solution:
                 res.append(c)
 
         return "".join(res)
-
