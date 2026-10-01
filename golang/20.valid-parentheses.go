@@ -1,21 +1,35 @@
 func isValid(s string) bool {
-	st := []byte{}
+	st := []rune{}
 
-	tb := map[byte]byte{
-		'(': ')',
-		'[': ']',
-		'{': '}',
-	}
-
-	for i := range len(s) {
-		c := s[i]
-
-		if _, ok := tb[c]; ok {
-			st = append(st, c)
-		} else if len(st) == 0 || tb[st[len(st)-1]] != c {
+	for _, ch := range s {
+		switch ch {
+		case '(', '{', '[':
+			{
+				st = append(st, ch)
+			}
+		case ')':
+			{
+				if len(st) == 0 || st[len(st)-1] != '(' {
+					return false
+				}
+				st = st[:len(st)-1]
+			}
+		case '}':
+			{
+				if len(st) == 0 || st[len(st)-1] != '{' {
+					return false
+				}
+				st = st[:len(st)-1]
+			}
+		case ']':
+			{
+				if len(st) == 0 || st[len(st)-1] != '[' {
+					return false
+				}
+				st = st[:len(st)-1]
+			}
+		default:
 			return false
-		} else {
-			st = st[:len(st)-1]
 		}
 	}
 
