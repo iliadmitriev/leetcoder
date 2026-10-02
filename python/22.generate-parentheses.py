@@ -1,20 +1,19 @@
 class Solution:
-    def generateParenthesis(self, n: int) -> List[str]:
+    def generateParenthesis(self, n: int) -> list[str]:
         res = []
-        
-        @cache
-        def dp(n: int) -> List[str]:
-            
-            # dp(0) = ''
-            if n == 0:
-                return ['']
-            
-            res = []
-            # dp(n) = { dp(0) .. dp(n - 1) }({ dp(n - 1) .. dp(0) })
-            for i in range(n):
-                for left in dp( i ): # iterate all { dp(0) .. dp(n - 1) }
-                    for right in dp(n - i - 1): # itreate all { dp(n - 1) .. dp(0) }
-                        res.append(f'{left}({right})')
-            return res
-        
-        return dp(n)
+
+        def dp(opening: int, closing: int, s: str):
+            if opening == 0 and closing == 0:
+                res.append(s)
+
+            if opening > closing:
+                return
+
+            if opening:
+                dp(opening - 1, closing, s + '(')
+
+            if closing:
+                dp(opening, closing - 1, s + ')')
+
+        dp(n, n, '')
+        return res
