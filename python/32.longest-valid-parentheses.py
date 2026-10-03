@@ -1,33 +1,23 @@
 class Solution:
     def longestValidParentheses(self, s: str) -> int:
-        """
-        Idea: stack approach
-        Time: O(n)
-        Space: O(n)
-        """
-        res = 0
-        
-        left = right = 0
-        for c in s:
-            if c == '(': left += 1
-            else: right += 1
-            
-            if left == right:
-                res = max(res, left * 2)
-                
-            if right > left:
-                left = right = 0
-                
-                
-        left = right = 0
-        for c in reversed(s):
-            if c == '(': left += 1
-            else: right += 1
-            
-            if left == right:
-                res = max(res, left * 2)
-                
-            if left > right:
-                left = right = 0
-                
-        return res
+        def scan(seq, opening_symb="(") -> int:
+            res = 0
+            opening, closing = 0, 0
+            for item in seq:
+                if item == opening_symb:
+                    opening += 1
+                else:
+                    closing += 1
+
+                if opening == closing:
+                    res = max(opening + closing, res)
+
+                if opening < closing:
+                    opening, closing = 0, 0
+
+            return res
+
+        return max(
+            scan(s, "("),
+            scan(reversed(s), ")"),
+        )
