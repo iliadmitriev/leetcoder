@@ -1,42 +1,35 @@
-from itertools import product
 from queue import deque
-from typing import Tuple, Set, List
 
 
 class Solution:
-    def closedIsland(self, grid: List[List[int]]) -> int:
+    def closedIsland(self, grid: list[list[int]]) -> int:
         m, n = len(grid), len(grid[0])
 
-        Position = Tuple[int, int]
-        def step(pos: Position, vis: Set[Position]) -> Position:
-            phase = (-1, 0, 1, 0, -1)
-            for i in range(4):
-                row, col = pos[0] + phase[i], pos[1] + phase[i + 1]
-                if 0 <= row < m and 0 <= col < n \
-                        and grid[row][col] == 0 and (row, col) not in vis:
-                    yield row, col
+        def dfs_fill(r: int, c: int):
+            if r < 0 or r >= m or c < 0 or c >= n or grid[r][c] != 0:
+                return
 
-        def bfs(pos: Position, vis: Set[Position]) -> bool:
-            border = False
-            vis.add(pos)
-            queue = deque([pos])
-            while queue:
-                pos = queue.popleft()
-                if pos[0] == 0 or pos[0] == m - 1 or pos[1] == 0 or pos[1] == n - 1:
-                    border = True
-                for next_pos in step(pos, visited):
-                    vis.add(next_pos)
-                    queue.append(next_pos)
+            grid[r][c] = 1
 
-            return not border
+            dfs_fill(r + 1, c)
+            dfs_fill(r - 1, c)
+            dfs_fill(r, c + 1)
+            dfs_fill(r, c - 1)
 
-        visited = set()
+
+        for r in range(m):
+            dfs_fill(r, 0)
+            dfs_fill(r, n - 1)
+
+        for c in range(n):
+            dfs_fill(0, c)
+            dfs_fill(m - 1, c)
+        
         res = 0
-        for pos in product(range(m), range(n)):
-            if grid[pos[0]][pos[1]] == 0 and pos not in visited:
-                res += bfs(pos, visited)
+        for r in range(1, m - 1):
+            for c in range(1, n - 1):
+                if grid[r][c] == 0:
+                    res += 1
+                    dfs_fill(r, c)
 
         return res
-
-        
-
