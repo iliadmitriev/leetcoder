@@ -1,6 +1,10 @@
+import numpy as np
+
+
 class Solution:
-    def minMoves2(self, nums: List[int]) -> int:
-        snums = sorted(nums)
-        mid = snums[len(snums) // 2]
-        res = reduce(lambda x, y: x + abs(mid - y), nums, 0)
-        return res
+    def minMoves2(self, nums: list[int]) -> int:
+        a = np.array(nums)
+        n = len(a)
+        med = np.partition(a, n // 2)[n // 2]
+
+        return int(np.abs(a - med).sum())
