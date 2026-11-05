@@ -1,30 +1,23 @@
+import collections
+
+
 class Solution:
-    def bisectLeft(self, nums: list[int], target: int, d: int) -> bool:
-        lo, hi = 0, len(nums)
+    def findTheDistanceValue(self, arr1: List[int], arr2: List[int], d: int) -> int:
+        w = d + 1
+        lo = {}
+        hi = {}
 
-        while lo < hi:
-            mid = (lo + hi) // 2
+        for b in arr2:
+            k = b // w
+            lo[k] = min(lo.get(k, b), b)
+            hi[k] = max(hi.get(k, b), b)
 
-            if nums[mid] < target:
-                if target - nums[mid] <= d:
-                    return False
+        def far(a):
+            k = a // w
+            return (
+                k not in lo
+                and hi.get(k - 1, -inf) < a - d
+                and lo.get(k + 1, inf) > a + d
+            )
 
-                lo = mid + 1
-            else:
-                if nums[mid] - target <= d:
-                    return False
-
-                hi = mid
-
-        return True
-
-    def findTheDistanceValue(self, arr1: list[int], arr2: list[int], d: int) -> int:
-        arr2.sort()
-        res = 0
-
-        for x in arr1:
-            if self.bisectLeft(arr2, x, d):
-                res += 1
-
-        return res
-
+        return sum(map(far, arr1))
